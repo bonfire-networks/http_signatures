@@ -4,6 +4,10 @@
 
 # https://tools.ietf.org/html/draft-cavage-http-signatures-08
 defmodule HTTPSignatures do
+  @moduledoc """
+  HTTP Signatures library.
+  """
+
   require Logger
 
   def split_signature(sig) do

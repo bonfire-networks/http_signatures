@@ -5,6 +5,8 @@
 defmodule HTTPSignatures.TestAdapter do
   @behaviour HTTPSignatures.Adapter
 
+  @moduledoc "Test adapter for HTTPSignatures library."
+
   @mastodon_admin_pubkey hd(
                            :public_key.pem_decode(
                              File.read!("test/admin@mastodon.example.org.key")
