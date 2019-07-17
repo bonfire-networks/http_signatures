@@ -60,6 +60,12 @@ defmodule HTTPSignatures do
     validate(headers, signature, public_key)
   end
 
+  @doc "Get signature for conn in split form."
+  def signature_for_conn(conn) do
+    headers = Enum.into(conn.req_headers, %{})
+    split_signature(headers["signature"])
+  end
+
   def build_signing_string(headers, used_headers) do
     used_headers
     |> Enum.map(fn header -> "#{header}: #{headers[header]}" end)
