@@ -62,8 +62,13 @@ defmodule HTTPSignatures do
 
   @doc "Get signature for conn in split form."
   def signature_for_conn(conn) do
-    headers = Enum.into(conn.req_headers, %{})
-    split_signature(headers["signature"])
+    with headers <- Enum.into(conn.req_headers, %{}),
+         signature when is_binary(signature) <- headers["signature"] do
+      split_signature(signature)
+    else
+      _ ->
+        %{}
+    end
   end
 
   def build_signing_string(headers, used_headers) do
