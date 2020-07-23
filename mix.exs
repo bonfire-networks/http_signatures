@@ -4,12 +4,14 @@ defmodule HttpSignatures.MixProject do
   def project do
     [
       app: :http_signatures,
+      description: "Library for manipulating and validating HTTP signatures",
       version: "0.1.0",
       elixir: "~> 1.7",
       elixirc_options: [warnings_as_errors: true],
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
-      deps: deps()
+      deps: deps(),
+      package: package()
     ]
   end
 
@@ -26,6 +28,13 @@ defmodule HttpSignatures.MixProject do
       {:credo, "~> 1.0.0", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.19", only: :dev, runtime: false},
       {:dialyxir, "~> 1.0.0-rc.5", only: [:dev], runtime: false}
+    ]
+  end
+
+  defp package do
+    [
+      licenses: ["LGPLv3"],
+      links: %{"GitLab" => "https://git.pleroma.social/pleroma/elixir-libraries/http_signatures"}
     ]
   end
 
