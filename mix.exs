@@ -33,7 +33,7 @@ defmodule HttpSignatures.MixProject do
 
   defp package do
     [
-      licenses: ["LGPLv3"],
+      licenses: ["LGPL-3.0-only"],
       links: %{"GitLab" => "https://git.pleroma.social/pleroma/elixir-libraries/http_signatures"}
     ]
   end
