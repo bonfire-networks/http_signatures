@@ -5,7 +5,7 @@ defmodule HttpSignatures.MixProject do
     [
       app: :http_signatures,
       description: "Library for manipulating and validating HTTP signatures",
-      version: "0.1.0",
+      version: "0.1.1",
       elixir: "~> 1.7",
       elixirc_options: [warnings_as_errors: true],
       elixirc_paths: elixirc_paths(Mix.env()),
