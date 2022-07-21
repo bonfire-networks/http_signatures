@@ -1,5 +1,5 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-2019 Pleroma Authors <https://pleroma.social/>
+# SPDX-FileCopyrightText: 2017-2019 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: LGPL-3.0-only
 
 defmodule HTTPSignatures.TestAdapter do

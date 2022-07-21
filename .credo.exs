@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2017-2019 Pleroma Authors <https://pleroma.social/>
+# SPDX-License-Identifier: LGPL-3.0-only
+
 # This file contains the configuration for Credo and you are probably reading
 # this after creating it with `mix credo.gen.config`.
 #
