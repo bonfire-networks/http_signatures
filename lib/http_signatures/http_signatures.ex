@@ -73,8 +73,7 @@ defmodule HTTPSignatures do
 
   def build_signing_string(headers, used_headers) do
     used_headers
-    |> Enum.map(fn header -> "#{header}: #{headers[header]}" end)
-    |> Enum.join("\n")
+    |> Enum.map_join("\n", fn header -> "#{header}: #{headers[header]}" end)
   end
 
   def sign(private_key, key_id, headers) do
@@ -90,7 +89,6 @@ defmodule HTTPSignatures do
       headers: Map.keys(headers) |> Enum.join(" "),
       signature: signature
     ]
-    |> Enum.map(fn {k, v} -> "#{k}=\"#{v}\"" end)
-    |> Enum.join(",")
+    |> Enum.map_join(",", fn {k, v} -> "#{k}=\"#{v}\"" end)
   end
 end
