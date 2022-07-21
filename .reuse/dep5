@@ -1,0 +1,7 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: Pleroma
+Source: https://git.pleroma.social/pleroma/elixir-libraries/http_signatures
+
+Files: test/*.key
+Copyright: Pleroma Authors 2019-2022 <https://pleroma.social/>
+License: CC0-1.0
