@@ -38,18 +38,19 @@ defmodule HTTPSignatures do
     adapter = Application.get_env(:http_signatures, :adapter)
 
     with {:ok, public_key} <- adapter.fetch_public_key(conn) do
-      if validate_conn(conn, public_key) do
+      if not is_nil(public_key) and validate_conn(conn, public_key) do
         true
       else
-        Logger.debug("Could not validate, trying to refetch any relevant keys")
+        Logger.info("Could not validate, trying to refetch any relevant keys")
 
         with {:ok, public_key} <- adapter.refetch_public_key(conn) do
+          Logger.info(inspect public_key)
           validate_conn(conn, public_key)
         end
       end
     else
       e ->
-        Logger.debug("Could not validate against known public keys: #{inspect(e)}")
+        Logger.info("Could not find any public key to validate: #{inspect(e)}")
         false
     end
   end
