@@ -30,8 +30,11 @@ defmodule HTTPSignatures do
     sigstring = build_signing_string(headers, signature["headers"])
     Logger.debug("Signature: #{signature["signature"]}")
     Logger.debug("Sigstring: #{sigstring}")
+    
     {:ok, sig} = Base.decode64(signature["signature"])
+
     :public_key.verify(sigstring, :sha256, sig, public_key)
+    |> IO.inspect(label: "Verify:")
   end
 
   def validate_conn(conn) do
@@ -44,7 +47,7 @@ defmodule HTTPSignatures do
         Logger.info("Could not validate, trying to refetch any relevant keys")
 
         with {:ok, public_key} <- adapter.refetch_public_key(conn) do
-          Logger.info(inspect public_key)
+          Logger.debug("refetched public key: #{inspect public_key}")
           validate_conn(conn, public_key)
         end
       end
@@ -58,6 +61,8 @@ defmodule HTTPSignatures do
   def validate_conn(conn, public_key) do
     headers = Enum.into(conn.req_headers, %{})
     signature = split_signature(headers["signature"])
+    |> IO.inspect(label: "Signature from header:")
+
     validate(headers, signature, public_key)
   end
 
