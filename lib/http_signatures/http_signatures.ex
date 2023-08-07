@@ -76,8 +76,16 @@ defmodule HTTPSignatures do
     |> Enum.map_join("\n", fn header -> "#{header}: #{headers[header]}" end)
   end
 
+  # Sort map alphabetically to ensure stability
+  defp stable_sort_headers(headers) do
+    headers
+    |> Enum.into([])
+    |> Enum.sort_by(fn {k, _v} -> k end)
+  end
+
   def sign(private_key, key_id, headers) do
-    sigstring = build_signing_string(headers, Map.keys(headers))
+    headers = stable_sort_headers(headers)
+    sigstring = build_signing_string(headers, Keyword.keys(headers))
 
     signature =
       :public_key.sign(sigstring, :sha256, private_key)
@@ -86,7 +94,7 @@ defmodule HTTPSignatures do
     [
       keyId: key_id,
       algorithm: "rsa-sha256",
-      headers: Map.keys(headers) |> Enum.join(" "),
+      headers: Keyword.keys(headers) |> Enum.join(" "),
       signature: signature
     ]
     |> Enum.map_join(",", fn {k, v} -> "#{k}=\"#{v}\"" end)
