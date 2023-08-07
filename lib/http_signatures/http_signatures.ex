@@ -77,7 +77,7 @@ defmodule HTTPSignatures do
   end
 
   # Sort map alphabetically to ensure stability
-  defp stable_sort_headers(headers) do
+  defp stable_sort_headers(headers) when is_map(headers) do
     headers
     |> Enum.into([])
     |> Enum.sort_by(fn {k, _v} -> k end)
