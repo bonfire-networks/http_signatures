@@ -8,7 +8,7 @@ defmodule HTTPSignatures do
   HTTP Signatures library.
   """
 
-  require Logger
+  import Untangle
 
   def split_signature(sig) do
     default = %{"headers" => "date"}
@@ -28,13 +28,14 @@ defmodule HTTPSignatures do
 
   def validate(headers, signature, public_key) do
     sigstring = build_signing_string(headers, signature["headers"])
-    Logger.debug("Signature: #{signature["signature"]}")
-    Logger.debug("Sigstring: #{sigstring}")
+    debug(signature["signature"], "Signature")
+    debug(sigstring, "Sigstring")
 
     {:ok, sig} = Base.decode64(signature["signature"])
+    # |> debug("decoded signature")
 
     :public_key.verify(sigstring, :sha256, sig, public_key)
-    |> IO.inspect(label: "Verify:")
+    |> debug("Verify:")
   end
 
   def validate_conn(conn) do
@@ -44,16 +45,21 @@ defmodule HTTPSignatures do
       if not is_nil(public_key) and validate_conn(conn, public_key) do
         true
       else
-        Logger.info("Could not validate, trying to refetch any relevant keys")
+        warn("Could not validate, trying to refetch any relevant keys")
 
-        with {:ok, public_key} <- adapter.refetch_public_key(conn) do
-          Logger.debug("refetched public key: #{inspect(public_key)}")
-          validate_conn(conn, public_key)
+        with {:ok, fresh_public_key} <- adapter.refetch_public_key(conn) do
+          if fresh_public_key !=public_key do
+            debug(public_key, "refetched public key")
+            validate_conn(conn, public_key)
+            else
+              debug("refetched public key was identical")
+              false
+          end
         end
       end
     else
       e ->
-        Logger.info("Could not find any public key to validate: #{inspect(e)}")
+        error(e, "Could not find any public key to validate")
         false
     end
   end
@@ -63,7 +69,7 @@ defmodule HTTPSignatures do
 
     signature =
       split_signature(headers["signature"])
-      |> IO.inspect(label: "Signature from header:")
+      |> debug("Signature from header:")
 
     validate(headers, signature, public_key)
   end
@@ -93,7 +99,9 @@ defmodule HTTPSignatures do
 
   def sign(private_key, key_id, headers) do
     headers = stable_sort_headers(headers)
+
     sigstring = build_signing_string(headers, Keyword.keys(headers))
+    |> debug("sign_headers")
 
     signature =
       :public_key.sign(sigstring, :sha256, private_key)
