@@ -28,14 +28,20 @@ defmodule HTTPSignatures do
 
   def validate(headers, signature, public_key) do
     sigstring = build_signing_string(headers, signature["headers"])
-    debug(signature["signature"], "Signature")
-    debug(sigstring, "Sigstring")
+    
+    if signed = signature["signature"] do
+      debug(signed, "Signature")
+      debug(sigstring, "Sigstring")
 
-    {:ok, sig} = Base.decode64(signature["signature"])
-    # |> debug("decoded signature")
+      {:ok, sig} = Base.decode64(signed)
+      # |> debug("decoded signature")
 
-    :public_key.verify(sigstring, :sha256, sig, public_key)
-    |> debug("Verify:")
+      :public_key.verify(sigstring, :sha256, sig, public_key)
+      |> debug("Verify:")
+    else
+      warn(signature, "no signature in headers")
+      false
+    end
   end
 
   def validate_conn(conn) do
