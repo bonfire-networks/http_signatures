@@ -17,13 +17,18 @@ defmodule HTTPSignatures.Adapter do
   """
 
   @doc """
-  Fetch a public key, given a `Plug.Conn` structure.
+  Get public key from local cache/DB, given a `Plug.Conn` or a key_id.
   """
-  @callback fetch_public_key(Plug.Conn.t()) :: {:ok, any()} | {:error, any()}
+  @callback get_public_key(Plug.Conn.t() | any()) :: {:ok, any()} | {:error, any()}
 
   @doc """
-  Refetch a public key, given a `Plug.Conn` structure.
+  Get or fetch a public key from remote actor, given a `Plug.Conn` or a key_id.
+  """
+  @callback fetch_public_key(Plug.Conn.t() | any()) :: {:ok, any()} | {:error, any()}
+  
+  @doc """
+  Refetch a public key from remote actor, given a `Plug.Conn` or a key_id.
   Called when the initial key supplied failed to validate the signature.
   """
-  @callback refetch_public_key(Plug.Conn.t()) :: {:ok, any()} | {:error, any()}
+  @callback fetch_fresh_public_key(Plug.Conn.t() | any()) :: {:ok, any()} | {:error, any()}
 end

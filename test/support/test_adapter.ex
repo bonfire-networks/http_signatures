@@ -22,15 +22,21 @@ defmodule HTTPSignatures.TestAdapter do
              )
              |> :public_key.pem_entry_decode()
 
-  def fetch_public_key(_), do: {:ok, @mastodon_admin_pubkey}
+  def get_public_key(_), do: {:ok, @mastodon_admin_pubkey}
 
-  def refetch_public_key(%{params: %{"actor" => "https://niu.moe/users/rye"}}),
+  def fetch_fresh_public_key(%{params: params}),
+    do: fetch_fresh_public_key(params)
+
+  def fetch_fresh_public_key(%{"actor" => actor}
+      ),
+      do: fetch_fresh_public_key(actor)
+
+  def fetch_fresh_public_key("https://niu.moe/users/rye"),
     do: {:ok, @rye_pubkey}
 
-  def refetch_public_key(%{
-        params: %{"actor" => "https://mst3k.interlinked.me/users/luciferMysticus"}
-      }),
+  def fetch_fresh_public_key("https://mst3k.interlinked.me/users/luciferMysticus"
+      ),
       do: {:ok, @lm_pubkey}
 
-  def refetch_public_key(_), do: {:error, "no public key found"}
+  def fetch_fresh_public_key(_), do: {:error, "no public key found"}
 end

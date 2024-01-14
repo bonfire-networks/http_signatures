@@ -10,20 +10,55 @@ defmodule HTTPSignatures do
 
   import Untangle
 
-  def split_signature(sig) do
-    default = %{"headers" => "date"}
+  @doc "Validates signature in headers using a cached public_key, and tries to fetch a fresh public_key if not present or invalid"
+  def validate(conn_or_headers) do
+    headers = to_headers(conn_or_headers)
+    adapter = Application.get_env(:http_signatures, :adapter)
 
-    sig =
-      sig
-      |> String.trim()
-      |> String.split(",")
-      |> Enum.reduce(default, fn part, acc ->
-        [key | rest] = String.split(part, "=")
-        value = Enum.join(rest, "=")
-        Map.put(acc, key, String.trim(value, "\""))
-      end)
+    with %{"keyId" => key_id} = signature <- extract_signature(headers),
+         {:ok, public_key} <- adapter.get_public_key(key_id) do
 
-    Map.put(sig, "headers", String.split(sig["headers"], ~r/\s/))
+      if not is_nil(public_key) and validate(headers, signature, public_key) do
+        true
+      else
+        warn("Could not validate, trying to refetch any relevant keys")
+
+        with {:ok, fresh_public_key} <- adapter.fetch_fresh_public_key(key_id) do
+          if not is_nil(fresh_public_key) and fresh_public_key !=public_key do
+            debug(fresh_public_key, "refetched public key")
+            validate(headers, signature, fresh_public_key)
+          else
+            debug("refetched public key was not found or identical")
+            false
+          end
+        end
+      end
+    else
+      e ->
+        error(e, "Could not find any public key to validate")
+        false
+    end
+  end
+
+  @doc "Validates signature in headers using a cached public_key only"
+  def validate_cached(conn_or_headers) do
+    headers = to_headers(conn_or_headers)
+    adapter = Application.get_env(:http_signatures, :adapter)
+
+    with %{"keyId" => key_id} = signature <- extract_signature(headers),
+         {:ok, public_key} <- adapter.get_public_key(key_id) do
+
+      if not is_nil(public_key) and validate(headers, signature, public_key) do
+        true
+      else
+        warn("Could not validate, you may want to refetch any relevant keys")
+        false
+      end
+    else
+      e ->
+        error(e, "Could not find any public key to validate")
+        false
+    end
   end
 
   def validate(headers, signature, public_key) do
@@ -44,52 +79,47 @@ defmodule HTTPSignatures do
     end
   end
 
-  def validate_conn(conn) do
-    adapter = Application.get_env(:http_signatures, :adapter)
 
-    with {:ok, public_key} <- adapter.fetch_public_key(conn) do
-      if not is_nil(public_key) and validate_conn(conn, public_key) do
-        true
-      else
-        warn("Could not validate, trying to refetch any relevant keys")
-
-        with {:ok, fresh_public_key} <- adapter.refetch_public_key(conn) do
-          if fresh_public_key !=public_key do
-            debug(public_key, "refetched public key")
-            validate_conn(conn, public_key)
-            else
-              debug("refetched public key was identical")
-              false
-          end
-        end
-      end
-    else
-      e ->
-        error(e, "Could not find any public key to validate")
-        false
-    end
+  def validate_headers(headers, public_key) do
+    validate(headers, extract_signature(headers), public_key)
   end
 
-  def validate_conn(conn, public_key) do
-    headers = Enum.into(conn.req_headers, %{})
-
-    signature =
-      split_signature(headers["signature"])
-      |> debug("Signature from header:")
-
-    validate(headers, signature, public_key)
+  @doc "Get signature for conn or headers in split form."
+  def extract_signature(%{"signature"=> signature}) do
+    split_signature(signature)
+    |> debug()
+  end
+  def extract_signature(other) do
+    to_headers(other)
+    |> extract_signature()
   end
 
-  @doc "Get signature for conn in split form."
-  def signature_for_conn(conn) do
-    with headers <- Enum.into(conn.req_headers, %{}),
-         signature when is_binary(signature) <- headers["signature"] do
-      split_signature(signature)
-    else
-      _ ->
-        %{}
-    end
+  def to_headers(%{req_headers: headers}) do
+    Enum.into(headers, %{})
   end
+  def to_headers(headers) when is_map(headers) do
+    headers
+  end
+  def to_headers(headers) do
+    Enum.into(headers, %{})
+  end
+
+  def split_signature(sig) when is_binary(sig) do
+    default = %{"headers" => "date"}
+
+    sig =
+      sig
+      |> String.trim()
+      |> String.split(",")
+      |> Enum.reduce(default, fn part, acc ->
+        [key | rest] = String.split(part, "=")
+        value = Enum.join(rest, "=")
+        Map.put(acc, key, String.trim(value, "\""))
+      end)
+
+    Map.put(sig, "headers", String.split(sig["headers"], ~r/\s/))
+  end
+  def split_signature(_), do: %{}
 
   def build_signing_string(headers, used_headers) do
     used_headers

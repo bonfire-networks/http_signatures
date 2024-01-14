@@ -81,7 +81,7 @@ defmodule HttpSignaturesTest do
       ]
     }
 
-    result = HTTPSignatures.signature_for_conn(conn)
+    result = HTTPSignatures.extract_signature(conn)
     assert result["keyId"] == "http://mastodon.example.org/users/admin#main-key"
   end
 
@@ -110,7 +110,7 @@ defmodule HttpSignaturesTest do
       ]
     }
 
-    assert HTTPSignatures.validate_conn(conn, public_key)
+    assert HTTPSignatures.validate_headers(conn, conn.public_key)
   end
 
   test "it validates a conn and fetches the key" do
@@ -131,7 +131,7 @@ defmodule HttpSignaturesTest do
       ]
     }
 
-    assert HTTPSignatures.validate_conn(conn)
+    assert HTTPSignatures.validate(conn)
   end
 
   test "validate this" do
@@ -153,7 +153,7 @@ defmodule HttpSignaturesTest do
       ]
     }
 
-    assert HTTPSignatures.validate_conn(conn)
+    assert HTTPSignatures.validate(conn)
   end
 
   test "validate this too" do
@@ -175,7 +175,7 @@ defmodule HttpSignaturesTest do
       ]
     }
 
-    assert HTTPSignatures.validate_conn(conn)
+    assert HTTPSignatures.validate(conn)
   end
 
   test "it generates a signature" do
@@ -206,6 +206,6 @@ defmodule HttpSignaturesTest do
       ]
     }
 
-    assert HTTPSignatures.validate_conn(conn)
+    assert HTTPSignatures.validate(conn)
   end
 end
