@@ -2,15 +2,22 @@
 # SPDX-FileCopyrightText: 2017-2019 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: LGPL-3.0-only
 
-# https://tools.ietf.org/html/draft-cavage-http-signatures-08
 defmodule HTTPSignatures do
   @moduledoc """
-  HTTP Signatures library.
+  HTTP Signatures library supporting both draft-cavage-http-signatures-08 and RFC 9421 HTTP Message Signatures.
   """
 
   import Untangle
 
-  @doc "Validates signature in headers using a cached public_key, and tries to fetch a fresh public_key if not present or invalid"
+  alias HTTPSignatures.RFC9421
+
+  @doc """
+  Validates signature in headers using a cached public_key, and tries to fetch a fresh public_key if not present or invalid.
+  
+  Format is auto-detected based on headers:
+  - `Signature-Input` header present → RFC 9421
+  - `Signature` header only → draft-cavage
+  """
   def validate(conn_or_headers) do
     headers = to_headers(conn_or_headers)
     adapter = Application.get_env(:http_signatures, :adapter)
@@ -24,7 +31,7 @@ defmodule HTTPSignatures do
         warn("Could not validate, trying to refetch any relevant keys")
 
         with {:ok, fresh_public_key} <- adapter.fetch_fresh_public_key(key_id) do
-          if not is_nil(fresh_public_key) and fresh_public_key !=public_key do
+          if not is_nil(fresh_public_key) and fresh_public_key != public_key do
             debug(fresh_public_key, "refetched public key")
             validate(headers, signature, fresh_public_key)
           else
@@ -61,15 +68,19 @@ defmodule HTTPSignatures do
     end
   end
 
+  @doc "Validates a signature against headers and a public key. Dispatches to RFC 9421 or draft-cavage based on format."
+  def validate(headers, %{"format" => :rfc9421} = signature, public_key) do
+    RFC9421.verify(headers, signature, public_key)
+  end
+
   def validate(headers, signature, public_key) do
     sigstring = build_signing_string(headers, signature["headers"])
-    
+
     if signed = signature["signature"] do
       debug(signed, "Signature")
       debug(sigstring, "Sigstring")
 
       {:ok, sig} = Base.decode64(signed)
-      # |> debug("decoded signature")
 
       :public_key.verify(sigstring, :sha256, sig, public_key)
       |> debug("Verify:")
@@ -79,16 +90,34 @@ defmodule HTTPSignatures do
     end
   end
 
-
   def validate_headers(headers, public_key) do
     validate(headers, extract_signature(headers), public_key)
   end
 
-  @doc "Get signature for conn or headers in split form."
-  def extract_signature(%{"signature"=> signature}) do
+  @doc """
+  Extracts and parses signature from headers. Auto-detects format:
+  - RFC 9421: when `signature-input` header is present
+  - Draft-cavage: when only `signature` header is present
+  """
+  def extract_signature(%{"signature-input" => sig_input, "signature" => sig}) do
+    RFC9421.parse(sig_input, sig)
+    |> Map.put("format", :rfc9421)
+    |> debug("RFC 9421 signature extracted")
+  end
+
+  def extract_signature(%{"signature-input" => sig_input} = headers) do
+    # RFC 9421 with structured Signature header (may have different casing)
+    sig = headers["signature"] || ""
+    RFC9421.parse(sig_input, sig)
+    |> Map.put("format", :rfc9421)
+    |> debug("RFC 9421 signature extracted")
+  end
+
+  def extract_signature(%{"signature" => signature}) do
     split_signature(signature)
     |> debug()
   end
+
   def extract_signature(other) do
     to_headers(other)
     |> extract_signature()
@@ -104,6 +133,7 @@ defmodule HTTPSignatures do
     Enum.into(headers, %{})
   end
 
+  @doc "Parses a draft-cavage Signature header into a map."
   def split_signature(sig) when is_binary(sig) do
     default = %{"headers" => "date"}
 
@@ -121,6 +151,7 @@ defmodule HTTPSignatures do
   end
   def split_signature(_), do: %{}
 
+  @doc "Builds the signing string for draft-cavage signatures."
   def build_signing_string(headers, used_headers) do
     used_headers
     |> Enum.map_join("\n", fn header -> "#{header}: #{headers[header]}" end)
@@ -133,9 +164,42 @@ defmodule HTTPSignatures do
     |> Enum.sort_by(fn {k, _v} -> k end)
   end
 
-  def sign(private_key, key_id, headers) do
-    headers = stable_sort_headers(headers)
+  @doc """
+  Signs headers. Supports two formats via the `:format` option:
 
+  - `:cavage` (default) — draft-cavage format, returns a single `Signature` header string
+  - `:rfc9421` — RFC 9421 format, returns `{signature_input, signature}` header pair
+
+  For `:rfc9421`, `headers` should be a map of component names to values (e.g., `%{"@method" => "POST"}`).
+  Additional options for RFC 9421: `:components`, `:label`, `:created` (see `HTTPSignatures.RFC9421.sign/4`).
+  """
+  def sign(private_key, key_id, headers, opts \\ [])
+
+  def sign(private_key, key_id, headers, opts) when is_map(headers) do
+    case Keyword.get(opts, :format, :cavage) do
+      :rfc9421 ->
+        RFC9421.sign(private_key, key_id, headers, opts)
+
+      _cavage ->
+        sign_cavage(private_key, key_id, headers)
+    end
+  end
+
+  def sign(private_key, key_id, headers, opts) when is_list(headers) do
+    case Keyword.get(opts, :format, :cavage) do
+      :rfc9421 ->
+        RFC9421.sign(private_key, key_id, Map.new(headers), opts)
+
+      _cavage ->
+        sign_cavage(private_key, key_id, headers)
+    end
+  end
+
+  defp sign_cavage(private_key, key_id, headers) when is_map(headers) do
+    sign_cavage(private_key, key_id, stable_sort_headers(headers))
+  end
+
+  defp sign_cavage(private_key, key_id, headers) when is_list(headers) do
     sigstring = build_signing_string(headers, Keyword.keys(headers))
     |> debug("sign_headers")
 

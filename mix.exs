@@ -31,7 +31,8 @@ defmodule HttpSignatures.MixProject do
       {:credo, "~> 1.0", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.19", only: :dev, runtime: false},
       {:dialyxir, "~> 1.1.0", only: [:dev], runtime: false},
-      {:untangle, "~> 0.3"}
+      {:untangle, "~> 0.3"},
+      {:http_structured_field, "~> 0.1.4"}
     ]
   end
 
