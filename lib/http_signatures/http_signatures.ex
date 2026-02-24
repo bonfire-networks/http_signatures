@@ -12,34 +12,47 @@ defmodule HTTPSignatures do
   alias HTTPSignatures.RFC9421
 
   @doc """
-  Validates signature in headers using a cached public_key, and tries to fetch a fresh public_key if not present or invalid.
-  
+  Validates signature in headers using a cached public_key.
+
+  Options:
+  - `refetch_if_expired: true` — if cached key doesn't validate, tries to fetch a fresh key and re-validate
+  - `return: :key_host` — returns the keyId's hostname on success instead of `true`
+  - `return: :key` — returns the parsed keyId URI on success instead of `true`
+
   Format is auto-detected based on headers:
   - `Signature-Input` header present → RFC 9421
   - `Signature` header only → draft-cavage
   """
-  def validate(conn_or_headers) do
+  def validate(conn_or_headers, opts \\ []) do
     headers = to_headers(conn_or_headers)
     adapter = Application.get_env(:http_signatures, :adapter)
 
     with %{"keyId" => key_id} = signature <- extract_signature(headers),
          {:ok, public_key} <- adapter.get_public_key(key_id) do
 
-      if not is_nil(public_key) and validate(headers, signature, public_key) do
-        true
-      else
-        warn("Could not validate, trying to refetch any relevant keys")
+      valid? =
+        if not is_nil(public_key) and validate(headers, signature, public_key) do
+          true
+        else
+          if opts[:refetch_if_expired] do
+            warn("Could not validate, trying to refetch any relevant keys")
 
-        with {:ok, fresh_public_key} <- adapter.fetch_fresh_public_key(key_id) do
-          if not is_nil(fresh_public_key) and fresh_public_key != public_key do
-            debug(fresh_public_key, "refetched public key")
-            validate(headers, signature, fresh_public_key)
+            with {:ok, fresh_public_key} <- adapter.fetch_fresh_public_key(key_id) do
+              if not is_nil(fresh_public_key) and fresh_public_key != public_key do
+                debug(fresh_public_key, "refetched public key")
+                validate(headers, signature, fresh_public_key)
+              else
+                debug("refetched public key was not found or identical")
+                false
+              end
+            end
           else
-            debug("refetched public key was not found or identical")
+            warn("Could not validate, you may want to refetch any relevant keys")
             false
           end
         end
-      end
+
+      return_result(valid?, key_id, opts[:return])
     else
       e ->
         error(e, "Could not find any public key to validate")
@@ -47,26 +60,17 @@ defmodule HTTPSignatures do
     end
   end
 
-  @doc "Validates signature in headers using a cached public_key only"
-  def validate_cached(conn_or_headers) do
-    headers = to_headers(conn_or_headers)
-    adapter = Application.get_env(:http_signatures, :adapter)
+  def validate_cached(conn_or_headers, opts \\ []), do: validate(conn_or_headers, opts |> Keyword.put(:refetch_if_expired, false))
 
-    with %{"keyId" => key_id} = signature <- extract_signature(headers),
-         {:ok, public_key} <- adapter.get_public_key(key_id) do
-
-      if not is_nil(public_key) and validate(headers, signature, public_key) do
-        true
-      else
-        warn("Could not validate, you may want to refetch any relevant keys")
-        false
-      end
-    else
-      e ->
-        error(e, "Could not find any public key to validate")
-        false
-    end
+  # With `return: :key_host`, returns the keyId's hostname on success, false on failure.
+  # Default behaviour returns boolean for backwards compatibility.
+  defp return_result(true, key_id, :key_host) when is_binary(key_id) do
+    URI.parse(key_id).host || true
   end
+  defp return_result(true, key_id, :key) when is_binary(key_id) do
+    URI.parse(key_id) || true
+  end
+  defp return_result(valid?, _key_id, _opts), do: valid?
 
   @doc "Validates a signature against headers and a public key. Dispatches to RFC 9421 or draft-cavage based on format."
   def validate(headers, %{"format" => :rfc9421} = signature, public_key) do
