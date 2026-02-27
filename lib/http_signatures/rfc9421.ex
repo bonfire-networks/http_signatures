@@ -120,7 +120,10 @@ defmodule HTTPSignatures.RFC9421 do
       end)
 
     raw_params = serialize_signature_params(components, created, key_id)
-    sigstring = build_signature_base(headers, components, raw_params)
+
+    sigstring =
+      build_signature_base(headers, components, raw_params)
+      |> debug("RFC 9421 signing base")
 
     sig_bytes = :public_key.sign(sigstring, :sha256, private_key)
     sig_b64 = Base.encode64(sig_bytes)
