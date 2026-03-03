@@ -37,14 +37,13 @@ defmodule HTTPSignatures do
           if opts[:refetch_if_expired] do
             warn("Could not validate, trying to refetch any relevant keys")
 
-            with {:ok, fresh_public_key} <- adapter.fetch_fresh_public_key(key_id) do
-              if not is_nil(fresh_public_key) and fresh_public_key != public_key do
+            with {:ok, fresh_public_key} when not is_nil(fresh_public_key) and fresh_public_key != public_key <- adapter.fetch_fresh_public_key(key_id) do
                 debug(fresh_public_key, "refetched public key")
                 validate(headers, signature, fresh_public_key)
-              else
-                debug("refetched public key was not found or identical")
+              else e ->
+                info(e, "re-fetched public key was not found or identical")
                 false
-              end
+              
             end
           else
             warn("Could not validate, you may want to refetch any relevant keys")
