@@ -64,7 +64,23 @@ defmodule HTTPSignatures do
   # With `return: :key_host`, returns the keyId's hostname on success, false on failure.
   # Default behaviour returns boolean for backwards compatibility.
   defp return_result(true, key_id, :key_host) when is_binary(key_id) do
-    URI.parse(key_id).host || true
+    uri = URI.parse(key_id)
+
+    host =
+      case uri do
+        %{host: host, port: port, scheme: scheme} when is_binary(host) ->
+          cond do
+            is_nil(port) -> host
+            scheme == "https" and port == 443 -> host
+            scheme == "http" and port == 80 -> host
+            true -> "#{host}:#{port}"
+          end
+
+        _ ->
+          nil
+      end
+
+    host || true
   end
   defp return_result(true, key_id, :key) when is_binary(key_id) do
     URI.parse(key_id) || true
